@@ -1,49 +1,36 @@
+Music Video Compiler v1.0
+============================
+
+Aplikasi untuk mengkompilasi musik + video + overlay + efek secara otomatis.
+
+✨ Fitur:
+• Auto compile music video
+• Audio mixing & normalization
+• Overlay teks & gambar
+• Batch processing
+• Effects engine
+
+📌 Dibuat oleh: Satrio Adi Wibowo
+
+Cara Penggunaan:
+1. Double klik MusicVideoCompiler.exe
+2. Pilih musik dan video/template
+3. Atur pengaturan yang diinginkan
+4. Klik Compile
+
+Catatan:
+- Pastikan FFmpeg sudah terinstall di komputer (atau gunakan installer)
+- Untuk hasil terbaik, gunakan video resolusi tinggi
+
+GitHub: https://github.com/Satrioadi017/music-video-compiler
+
+---
+
+Music Video Compiler © 2026 Satrio Adi Wibowo
+
+
 # Music Video Compiler
 
-Professional Music Compilation Video Creator — Buat Video Kompilasi Musik dalam Hitungan Menit!
-
-Gabungkan ratusan lagu dengan video looping, lengkap dengan playlist otomatis, timestamps YouTube, overlay judul lagu, dan transisi profesional. Sempurna untuk upload atau live stream 24/7.
-
-## Features
-
-### Core Features
-- **Audio + Video Auto Merge** — Gabungkan ratusan lagu dengan video looping otomatis
-- **YouTube Timestamps** — Generate timestamps otomatis untuk deskripsi YouTube
-- **Playlist PNG** — Generate playlist image dengan font, warna, dan layout kustom
-- **Song Title Overlay** — Tampilkan judul lagu dinamis (9 posisi, custom font & warna)
-- **Intro & Outro Video** — Video pembuka/penutup dengan 3 mode audio (Normal, Seamless, Mixed)
-- **Slideshow Mode** — Gabungkan gambar dengan efek transisi
-
-### 30+ Visual Effects
-- **Weather**: Rain, Heavy Rain, Snow, Blizzard, Fog, Mist
-- **Light**: Light Leak, Lens Flare, Bokeh, Soft Glow, Neon Glow, Starburst
-- **Color**: Warm Tone, Cool Tone, Cinematic, Sepia, Monochrome, High Contrast, Pastel, Sunset
-- **Retro**: VHS Retro, VHS Glitch, 8mm Film, Analog TV, Polaroid
-- **Distortion**: Glitch, Chromatic Aberration, Scan Lines, Pixelate, Wave Distortion
-- **Particle**: Fire Particles, Sparks, Dust, Fireflies
-- **Overlay**: Film Grain, Vignette, Strong Vignette, Letterbox
-- **Spectrum**: Audio Spectrum, Audio Waves, Audio Frequency
-
-### Advanced Features
-- **Random Effect (Anti-Template)** — Efek berbeda otomatis untuk setiap video
-- **Crossfade Audio** — Transisi halus antar lagu (0.5-5 detik)
-- **Dual Overlay (Efek + Spectrum)** — Dua kategori overlay terpisah
-- **Multi-Overlay Support** — PNG transparan, GIF animated, video greenscreen/blackscreen
-- **Batch & Mass Processing** — Proses banyak video sekaligus
-- **Master+Copy Strategy** — Render hemat waktu
-- **GPU Acceleration** — NVIDIA NVENC, AMD AMF, Intel QSV (hingga 5x lebih cepat)
-- **Resolution & FPS Control** — 720p, 1080p, 4K, Vertical Shorts, FPS 24/25/30/50/60
-- **Live Stream Ready (CBR)** — Mode CBR untuk live streaming 24/7
-- **Audio Mixing** — Volume control, EQ presets, compressor, normalizer
-- **Professional Transitions** — Fade, Dissolve, Slide, Wipe
-- **Image to Video** — Konversi JPG, PNG, WEBP, JFIF ke video
-
-## Requirements
-
-- **Python 3.9+**
-- **FFmpeg** (must be installed and in PATH)
-- **PyQt5** (GUI framework)
-- **Pillow** (for playlist PNG generation)
 
 ## Installation
 
