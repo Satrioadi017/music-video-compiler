@@ -85,6 +85,7 @@ def find_ffmpeg() -> str:
         "/usr/local/bin/ffmpeg",
         "C:\\ffmpeg\\bin\\ffmpeg.exe",
         os.path.expanduser("~/ffmpeg/bin/ffmpeg"),
+        "C:\\Users\\user\\Downloads\\ffmpeg-8.1.1-full_build\\bin\\ffmpeg.exe",  # tambahan path kamu
     ]
     for p in common_paths:
         if os.path.isfile(p):
@@ -134,7 +135,34 @@ def get_media_info(filepath: str) -> dict:
     return json.loads(result.stdout)
 
 
-# ... (bagian lain tetap sama sampai fungsi yang pakai subprocess)
+def build_encoding_args(settings: EncodingSettings) -> list[str]:
+    """Build encoding arguments based on settings."""
+    args = []
+
+    if settings.gpu_accel == GPUAccel.NVIDIA_NVENC:
+        args.extend(["-c:v", "h264_nvenc"])
+    elif settings.gpu_accel == GPUAccel.AMD_AMF:
+        args.extend(["-c:v", "h264_amf"])
+    elif settings.gpu_accel == GPUAccel.INTEL_QSV:
+        args.extend(["-c:v", "h264_qsv"])
+    else:
+        args.extend(["-c:v", "libx264"])
+
+    if settings.rate_control == RateControl.CBR:
+        args.extend(["-b:v", settings.video_bitrate, "-maxrate", settings.video_bitrate, "-bufsize", "16M"])
+    else:
+        args.extend(["-crf", str(settings.crf)])
+
+    args.extend([
+        "-preset", settings.preset,
+        "-pix_fmt", settings.pixel_format,
+        "-r", str(settings.fps),
+        "-g", str(settings.fps * settings.keyframe_interval),
+        "-fflags", "+genpts+discardcorrupt",
+        "-avoid_negative_ts", "make_zero",
+    ])
+
+    return args
 
 
 def loop_video_to_duration(
@@ -147,14 +175,15 @@ def loop_video_to_duration(
     """Loop a video to match a target duration."""
     ffmpeg = find_ffmpeg()
     w, h = settings.resolution.width, settings.resolution.height
+
     cmd = [
         ffmpeg, "-y",
         "-stream_loop", "-1",
         "-i", video_path,
         "-t", str(duration),
-        "-vf", f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
+        "-vf", f"scale={w}:{h}:force_original_aspect_ratio=decrease:flags=lanczos,"
                f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:black,"
-               f"fps={settings.fps}",
+               f"fps={settings.fps},format=yuv420p",
     ]
     cmd.extend(build_encoding_args(settings))
     cmd.extend(["-an", output_path])
@@ -170,7 +199,7 @@ def loop_video_to_duration(
     )
     stdout, _ = process.communicate()
     if process.returncode != 0:
-        raise RuntimeError(f"FFmpeg loop error: {stdout[-1000:]}")
+        raise RuntimeError(f"FFmpeg loop error:\n{stdout[-1500:]}")
 
 
 def merge_video_audio(
@@ -191,6 +220,7 @@ def merge_video_audio(
         "-c:a", "aac", "-b:a", settings.audio_bitrate,
         "-ar", str(settings.audio_sample_rate),
         "-shortest",
+        "-fflags", "+genpts+discardcorrupt",
         output_path
     ]
     process = subprocess.Popen(
@@ -204,7 +234,96 @@ def merge_video_audio(
     )
     stdout, _ = process.communicate()
     if process.returncode != 0:
-        raise RuntimeError(f"FFmpeg merge error: {stdout[-1000:]}")
+        raise RuntimeError(f"FFmpeg merge error:\n{stdout[-1500:]}")
+
+
+def concat_audio_files(
+    audio_files: list[str],
+    output_path: str,
+    crossfade_duration: float = 0.0,
+    progress_callback=None,
+) -> list[tuple[float, str]]:
+    """Concatenate audio files with strong compatibility handling."""
+    ffmpeg = find_ffmpeg()
+    timestamps: list[tuple[float, str]] = []
+
+    if not audio_files:
+        raise ValueError("No audio files provided")
+
+    # Normalisasi audio sangat ketat
+    normalized_files = []
+    for i, af in enumerate(audio_files):
+        norm_path = tempfile.mktemp(suffix="_norm.m4a")
+        normalized_files.append(norm_path)
+
+        norm_cmd = [
+            ffmpeg, "-y", "-i", af,
+            "-ar", "44100",
+            "-ac", "2",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-fflags", "+genpts+discardcorrupt",
+            norm_path
+        ]
+        result = subprocess.run(norm_cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
+        
+        if result.returncode != 0:
+            print(f"Warning: Normalize failed for {af}, using original.")
+            normalized_files[-1] = af
+        else:
+            print(f"Normalized: {af}")
+
+        if progress_callback:
+            progress_callback(int((i + 1) / len(audio_files) * 40))
+
+    # Gunakan file yang valid
+    audio_files = [f for f in normalized_files if os.path.exists(f)]
+
+    # Buat concat list
+    list_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding='utf-8')
+    current_time = 0.0
+
+    for i, af in enumerate(audio_files):
+        safe_path = af.replace("\\", "/").replace("'", "'\\''")
+        list_file.write(f"file '{safe_path}'\n")
+        
+        name = Path(af).stem
+        timestamps.append((current_time, name))
+        duration = get_media_duration(af)
+        current_time += duration
+
+        if progress_callback:
+            progress_callback(40 + int((i + 1) / len(audio_files) * 60))
+
+    list_file.close()
+
+    cmd = [
+        ffmpeg, "-y",
+        "-f", "concat", "-safe", "0",
+        "-i", list_file.name,
+        "-c:a", "aac", "-b:a", "192k", "-ar", "44100",
+        "-fflags", "+genpts+discardcorrupt",
+        output_path
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
+    
+    if result.returncode != 0:
+        raise RuntimeError(f"Concat error:\n{result.stderr[-1500:]}")
+
+    # Cleanup
+    try:
+        os.unlink(list_file.name)
+    except:
+        pass
+    for nf in normalized_files:
+        if os.path.exists(nf) and nf not in audio_files:
+            try:
+                os.unlink(nf)
+            except:
+                pass
+
+    return timestamps
 
 
 def run_ffmpeg_with_progress(
