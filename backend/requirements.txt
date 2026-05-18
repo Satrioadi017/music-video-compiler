@@ -1,0 +1,39 @@
+# FastAPI & Server
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+python-multipart==0.0.9
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+httpx==0.27.0
+
+# Database
+sqlalchemy==2.0.30
+alembic==1.13.1
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+
+# Celery & Redis
+celery[redis]==5.4.0
+redis==5.0.4
+
+# AI & ML
+openai==1.35.3
+
+# Video Processing
+ffmpeg-python==0.2.0
+
+# Utilities
+pydantic==2.7.4
+pydantic-settings==2.3.4
+python-dotenv==1.0.1
+apscheduler==3.10.4
+boto3==1.34.131
+Pillow==10.3.0
+aiofiles==24.1.0
+jinja2==3.1.4
+
+# Social Media SDKs
+tweepy==4.14.0
+google-api-python-client==2.134.0
+google-auth-oauthlib==1.2.0
+instagrapi==2.1.2

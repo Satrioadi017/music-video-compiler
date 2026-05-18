@@ -1,136 +1,161 @@
-Music Video Compiler v1.0
-============================
+# AI Social Media Automation Platform
 
-Aplikasi untuk mengkompilasi musik + video + overlay + efek secara otomatis.
+Full-stack AI-powered social media automation platform for managing content across **Instagram**, **YouTube**, **TikTok**, **Facebook**, and **Twitter/X**.
 
-✨ Fitur:
-• Auto compile music video
-• Audio mixing & normalization
-• Overlay teks & gambar
-• Batch processing
-• Effects engine
+## Features
 
-📌 Dibuat oleh: Satrio Adi Wibowo
+- **AI Content Generator** — Generate posts, captions, hashtags using GPT-4o
+- **AI Image Generator** — Create images with DALL-E 3
+- **Auto Scheduler** — Schedule and automate content publishing
+- **Live Streaming 24/7** — Multi-platform RTMP streaming with FFmpeg
+- **Multi-Account Manager** — Manage multiple accounts per platform
+- **Analytics Dashboard** — Track followers, engagement, impressions
+- **Video Generator** — Create videos from images/text with FFmpeg
+- **Caption AI & Hashtag AI** — Platform-optimized captions and hashtags
+- **Content Queue** — Manage content pipeline with status tracking
+- **Webhooks** — Event-driven notifications for all actions
 
-Cara Penggunaan:
-1. Double klik MusicVideoCompiler.exe
-2. Pilih musik dan video/template
-3. Atur pengaturan yang diinginkan
-4. Klik Compile
+## Tech Stack
 
-Catatan:
-- Pastikan FFmpeg sudah terinstall di komputer (atau gunakan installer)
-- Untuk hasil terbaik, gunakan video resolusi tinggi
+| Layer | Technology |
+|-------|-----------|
+| **Backend** | Python, FastAPI, Celery, Redis, PostgreSQL |
+| **Frontend** | React, TypeScript, Tailwind CSS, Vite |
+| **AI** | OpenAI GPT-4o, DALL-E 3, Whisper |
+| **Video** | FFmpeg, RTMP streaming |
+| **Deploy** | Docker, Docker Compose |
 
-GitHub: https://github.com/Satrioadi017/music-video-compiler
+## Quick Start
 
----
+### Prerequisites
 
-Music Video Compiler © 2026 Satrio Adi Wibowo
+- Docker & Docker Compose
+- (Optional) OpenAI API key for AI features
 
-
-# Music Video Compiler
-
-
-## Installation
-
-### 1. Install FFmpeg
-
-**Windows:**
-```bash
-# Using Chocolatey
-choco install ffmpeg
-
-# Or download from https://ffmpeg.org/download.html
-```
-
-**macOS:**
-```bash
-brew install ffmpeg
-```
-
-**Linux (Ubuntu/Debian):**
-```bash
-sudo apt update && sudo apt install ffmpeg
-```
-
-### 2. Install Music Video Compiler
+### Run with Docker
 
 ```bash
 # Clone the repository
 git clone https://github.com/Satrioadi017/music-video-compiler.git
 cd music-video-compiler
 
-# Install dependencies
-pip install -r requirements.txt
+# Copy environment file
+cp backend/.env.example backend/.env
+# Edit backend/.env with your API keys
 
-# Install the application
-pip install -e .
+# Start all services
+docker-compose up -d
+
+# Access the application
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:8000
+# API Docs: http://localhost:8000/docs
 ```
 
-## Usage
+### Development Setup
 
-### Run the Application
-
+**Backend:**
 ```bash
-# Method 1: Using entry point
-music-video-compiler
-
-# Method 2: Using Python module
-python -m music_video_compiler
-
-# Method 3: Using run script
-python run.py
+cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
 ```
 
-### Quick Start Guide
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-1. **Add Audio Files** — Drag & drop atau klik "Add Audio Files" untuk menambahkan lagu
-2. **Select Background Video** — Pilih video yang akan di-loop sebagai background
-3. **Configure Effects** — Pilih efek visual dari 30+ pilihan (Tab Effects)
-4. **Set Overlays** — Atur overlay judul lagu dan spectrum (Tab Overlays)
-5. **Generate Timestamps** — Klik generate untuk membuat timestamps YouTube (Tab Timestamps)
-6. **Configure Encoding** — Atur resolusi, FPS, GPU, dan bitrate (Tab Encoding)
-7. **Start Render** — Klik "START RENDER" untuk memulai proses
+**Celery Worker:**
+```bash
+cd backend
+celery -A app.tasks.celery_app worker --loglevel=info
+```
 
-### Batch Processing
+**Celery Beat (Scheduler):**
+```bash
+cd backend
+celery -A app.tasks.celery_app beat --loglevel=info
+```
 
-1. Buka tab **Batch**
-2. Atur jumlah variasi yang diinginkan
-3. Aktifkan "Random Audio Order" dan/atau "Random Effects"
-4. Pilih output directory
-5. Klik "Start Mass Batch"
-
-### Live Streaming Setup
-
-1. Buka tab **Encoding**
-2. Set Rate Control ke **CBR**
-3. Set Keyframe Interval ke **2 seconds**
-4. Set Video Bitrate sesuai resolusi:
-   - 720p: 5M
-   - 1080p: 8M
-   - 4K: 30M
-
-## Project Structure
+## Architecture
 
 ```
-music-video-compiler/
-├── music_video_compiler/
-│   ├── __init__.py          # Package initialization
-│   ├── __main__.py          # Entry point
-│   ├── gui.py               # PyQt5 GUI application
-│   ├── ffmpeg_engine.py     # Core FFmpeg processing engine
-│   ├── effects_engine.py    # 30+ visual effects
-│   ├── overlay_engine.py    # Song title & multi-overlay system
-│   ├── timestamp_generator.py  # YouTube timestamps & playlist PNG
-│   ├── audio_mixer.py       # Advanced audio mixing
-│   └── batch_processor.py   # Batch & mass processing
-├── setup.py                 # Package setup
-├── requirements.txt         # Dependencies
-├── run.py                   # Quick run script
+├── backend/
+│   ├── app/
+│   │   ├── api/              # API routes (auth, accounts, content, etc.)
+│   │   ├── models/           # SQLAlchemy database models
+│   │   ├── schemas/          # Pydantic request/response schemas
+│   │   ├── services/         # Business logic & platform adapters
+│   │   │   └── platform_adapters/  # Instagram, YouTube, TikTok, Facebook, Twitter
+│   │   ├── tasks/            # Celery async tasks
+│   │   ├── middleware/       # Auth & rate limiting
+│   │   ├── main.py           # FastAPI application
+│   │   ├── config.py         # Settings & environment variables
+│   │   └── database.py       # Database connection
+│   ├── alembic/              # Database migrations
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/
+│   ├── src/
+│   │   ├── components/       # React components
+│   │   ├── pages/            # Page components
+│   │   ├── services/         # API client
+│   │   ├── hooks/            # Custom React hooks
+│   │   ├── types/            # TypeScript types
+│   │   └── styles/           # Tailwind CSS
+│   ├── package.json
+│   └── Dockerfile
+├── docker-compose.yml
 └── README.md
 ```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/auth/register` | Register new user |
+| POST | `/api/v1/auth/login` | Login |
+| GET | `/api/v1/auth/me` | Get current user |
+| GET/POST | `/api/v1/accounts/` | List/create social accounts |
+| GET/POST | `/api/v1/content/` | List/create content |
+| POST | `/api/v1/content/{id}/publish` | Publish content |
+| POST | `/api/v1/content/ai/generate` | AI content generation |
+| POST | `/api/v1/content/ai/hashtags` | AI hashtag generation |
+| POST | `/api/v1/content/ai/image` | AI image generation |
+| POST | `/api/v1/content/ai/caption` | AI caption generation |
+| GET/POST | `/api/v1/schedules/` | List/create schedules |
+| GET | `/api/v1/analytics/summary` | Analytics summary |
+| GET/POST | `/api/v1/streams/` | List/create live streams |
+| POST | `/api/v1/streams/{id}/action` | Start/stop/restart stream |
+| GET/POST | `/api/v1/webhooks/` | List/create webhooks |
+
+## Platform Configuration
+
+Each platform requires OAuth credentials. Set them in your `.env` file:
+
+- **Instagram**: Graph API with long-lived tokens
+- **YouTube**: Google OAuth 2.0 with YouTube Data API v3
+- **TikTok**: TikTok Login Kit + Content Posting API
+- **Facebook**: Facebook Graph API with Page management
+- **Twitter/X**: OAuth 2.0 with Tweet write permissions
 
 ## License
 
 MIT License
+
+---
+
+**Dibuat oleh:** Satrio Adi Wibowo
+**GitHub:** https://github.com/Satrioadi017/music-video-compiler
+
+---
+
+## Music Video Compiler (Legacy)
+
+The original Music Video Compiler application is still available in the `music_video_compiler/` directory.
+See the [original documentation](music_video_compiler/README.md) for details.

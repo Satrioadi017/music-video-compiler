@@ -16,3 +16,19 @@ venv/
 *.wav
 *.mp3
 *.mvcproj
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+*.log
+
+# Celery
+celerybeat-schedule
+celerybeat-schedule.db
