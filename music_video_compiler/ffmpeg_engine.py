@@ -205,31 +205,37 @@ def add_title_overlay(
     font_size: int = 60,
     duration: float = None
 ) -> None:
-    """Add text title overlay with better Windows compatibility."""
+    """Add text title overlay - FIXED for Windows Fontconfig error."""
     ffmpeg = find_ffmpeg()
     
-    escaped_text = title_text.replace("'", "\\'").replace(":", "\\:").replace(",", "\\,")
+    # Escape teks
+    escaped_text = (title_text.replace("\\", "\\\\")
+                           .replace(":", "\\:")
+                           .replace("'", "\\'")
+                           .replace(",", "\\,"))
     
     if position == "top":
-        y_pos = "50"
+        y_pos = "80"
     elif position == "bottom":
-        y_pos = "h-th-50"
+        y_pos = "h-th-100"
     else:
         y_pos = "(h-th)/2"
-    
+
+    # Versi yang menghindari fontconfig problem
     drawtext = (
-        f"drawtext=fontfile='C:/Windows/Fonts/arial.ttf':"
+        f"drawtext=fontfile=C\\:/Windows/Fonts/arial.ttf:"
         f"text='{escaped_text}':"
         f"fontcolor=white:fontsize={font_size}:"
-        f"bordercolor=black:borderw=4:"
+        f"bordercolor=black:borderw=5:"
         f"x=(w-tw)/2:y={y_pos}:"
         f"enable='between(t,0,{duration if duration else 5})'"
     )
 
     cmd = [
-        ffmpeg, "-y", "-i", input_video,
+        ffmpeg, "-y",
+        "-i", input_video,
         "-vf", drawtext,
-        "-c:a", "copy",
+        "-c:a", "copy"
     ]
     cmd.extend(build_encoding_args(settings))
     cmd.append(output_video)
@@ -237,20 +243,26 @@ def add_title_overlay(
     result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
     
     if result.returncode != 0:
-        print("⚠️ Title overlay gagal, mencoba versi sederhana...")
-        simple_cmd = [
+        print("⚠️ Title overlay gagal, mencoba fallback sederhana...")
+        # Fallback super sederhana
+        fallback_drawtext = f"drawtext=text='{escaped_text}':fontcolor=white:fontsize=48:x=(w-tw)/2:y=100"
+        
+        fallback_cmd = [
             ffmpeg, "-y", "-i", input_video,
-            "-vf", f"drawtext=text='{escaped_text}':fontcolor=white:fontsize=50:x=(w-tw)/2:y=50",
-            "-c:a", "copy",
+            "-vf", fallback_drawtext,
+            "-c:a", "copy"
         ]
-        simple_cmd.extend(build_encoding_args(settings))
-        simple_cmd.append(output_video)
-        result = subprocess.run(simple_cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
+        fallback_cmd.extend(build_encoding_args(settings))
+        fallback_cmd.append(output_video)
+        
+        result = subprocess.run(fallback_cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
         
         if result.returncode != 0:
-            raise RuntimeError(f"Title overlay failed:\n{result.stderr[-800:]}")
+            raise RuntimeError(f"Title overlay failed:\n{result.stderr[-1000:]}")
+    else:
+        print("✅ Title overlay berhasil ditambahkan")
 
-
+        
 def add_intro_outro(
     main_video_path: str,
     intro_path: Optional[str],
@@ -258,35 +270,74 @@ def add_intro_outro(
     output_path: str,
     settings: EncodingSettings
 ) -> str:
-    """Add intro and/or outro video."""
+    """Add intro and/or outro video with safe path handling."""
     ffmpeg = find_ffmpeg()
-    temp_files = []
     current_input = main_video_path
+    temp_files = []
 
-    if intro_path and os.path.exists(intro_path):
-        temp_intro = tempfile.mktemp(suffix="_with_intro.mp4")
-        temp_files.append(temp_intro)
-        cmd = [ffmpeg, "-y", "-i", intro_path, "-i", current_input,
-               "-filter_complex", "concat=n=2:v=1:a=1", "-c:v", "libx264", "-c:a", "aac", temp_intro]
-        subprocess.run(cmd, check=True)
-        current_input = temp_intro
+    try:
+        # Intro
+        if intro_path and os.path.exists(intro_path):
+            temp_intro = tempfile.mktemp(suffix="_with_intro.mp4")
+            temp_files.append(temp_intro)
+            
+            cmd = [
+                ffmpeg, "-y",
+                "-i", intro_path,
+                "-i", current_input,
+                "-filter_complex", "concat=n=2:v=1:a=1[v][a];[v]scale=iw:ih[vout]",
+                "-map", "[vout]", "-map", "[a]",
+                "-c:v", "libx264", "-c:a", "aac",
+                "-shortest",
+                temp_intro
+            ]
+            print(f"Adding intro: {intro_path}")
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
+            
+            if result.returncode != 0:
+                raise RuntimeError(f"Intro add failed:\n{result.stderr[-800:]}")
+            
+            current_input = temp_intro
 
-    if outro_path and os.path.exists(outro_path):
-        temp_outro = tempfile.mktemp(suffix="_with_outro.mp4")
-        temp_files.append(temp_outro)
-        cmd = [ffmpeg, "-y", "-i", current_input, "-i", outro_path,
-               "-filter_complex", "concat=n=2:v=1:a=1", "-c:v", "libx264", "-c:a", "aac", temp_outro]
-        subprocess.run(cmd, check=True)
-        current_input = temp_outro
+        # Outro
+        if outro_path and os.path.exists(outro_path):
+            temp_outro = tempfile.mktemp(suffix="_with_outro.mp4")
+            temp_files.append(temp_outro)
+            
+            cmd = [
+                ffmpeg, "-y",
+                "-i", current_input,
+                "-i", outro_path,
+                "-filter_complex", "concat=n=2:v=1:a=1[v][a];[v]scale=iw:ih[vout]",
+                "-map", "[vout]", "-map", "[a]",
+                "-c:v", "libx264", "-c:a", "aac",
+                "-shortest",
+                temp_outro
+            ]
+            print(f"Adding outro: {outro_path}")
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
+            
+            if result.returncode != 0:
+                raise RuntimeError(f"Outro add failed:\n{result.stderr[-800:]}")
+            
+            current_input = temp_outro
 
-    shutil.copy2(current_input, output_path)
+        # Final move
+        shutil.copy2(current_input, output_path)
+        print("✅ Intro/Outro berhasil ditambahkan")
 
-    for f in temp_files:
-        if os.path.exists(f):
-            try:
-                os.unlink(f)
-            except:
-                pass
+    except Exception as e:
+        raise RuntimeError(f"Add intro/outro error: {str(e)}")
+
+    finally:
+        # Cleanup temp files
+        for f in temp_files:
+            if os.path.exists(f):
+                try:
+                    os.unlink(f)
+                except:
+                    pass
+
     return output_path
 
 
