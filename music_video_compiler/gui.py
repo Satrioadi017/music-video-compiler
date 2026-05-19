@@ -9,6 +9,12 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
+from .ffmpeg_engine import (
+    EncodingSettings,
+    Resolution,
+    GPUAccel,
+    detect_gpu,          
+)
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTabWidget, QGroupBox, QLabel, QPushButton, QFileDialog,
@@ -49,7 +55,11 @@ from .batch_processor import (
     get_supported_video_extensions,
     get_supported_image_extensions,
 )
-
+settings = EncodingSettings(
+    gpu_accel=GPUAccel.NONE,   # Paksa CPU
+    preset="medium",
+    crf=18
+)
 
 DARK_STYLE = """
 QMainWindow, QWidget {
@@ -1624,129 +1634,124 @@ class MainWindow(QMainWindow):
         output_path = self.output_path_edit.text()
 
         def render_task(progress_callback=None, status_callback=None):
-            if status_callback:
-                status_callback("Concatenating audio files...")
-
-            crossfade = (
-                self.crossfade_duration.value()
-                if self.crossfade_check.isChecked()
-                else 0.0
-            )
-            temp_audio = tempfile.mktemp(suffix=".m4a")
-            timestamps = concat_audio_files(
-                self.audio_files, temp_audio,
-                crossfade_duration=crossfade,
-                progress_callback=progress_callback,
-            )
-            self.timestamps = timestamps
-
-            total_duration = get_media_duration(temp_audio)
-
-            if status_callback:
-                status_callback("Processing video...")
-
-            temp_video = tempfile.mktemp(suffix=".mp4")
-
-            if self.slideshow_check.isChecked() and self.slideshow_images:
-                dur_per_img = total_duration / len(self.slideshow_images)
-                create_slideshow(
-                    self.slideshow_images, dur_per_img, temp_video,
-                    settings, self.slide_transition.currentText(),
-                )
-            else:
-                loop_video_to_duration(
-                    self.video_file, total_duration, temp_video,
-                    settings, progress_callback,
-                )
-
-            if progress_callback:
-                progress_callback(60)
-
-            active_effects = [e for e in ALL_EFFECTS if e.enabled]
-            if active_effects:
+            try:
                 if status_callback:
-                    status_callback("Applying visual effects...")
+                    status_callback("Concatenating audio files...")
 
-                effect_filter = build_effect_filter_chain(active_effects)
-                if effect_filter:
-                    temp_fx = tempfile.mktemp(suffix=".mp4")
-                    ffmpeg = find_ffmpeg()
-                    import subprocess
-                    cmd = [
-                        ffmpeg, "-y", "-i", temp_video,
-                        "-vf", effect_filter,
-                    ]
-                    cmd.extend(build_encoding_args(settings))
-                    cmd.extend(["-an", temp_fx])
-                    subprocess.run(cmd, capture_output=True, check=True)
-                    os.unlink(temp_video)
-                    temp_video = temp_fx
-
-            if progress_callback:
-                progress_callback(75)
-
-            if status_callback:
-                status_callback("Merging video and audio...")
-
-            temp_merged = tempfile.mktemp(suffix=".mp4")
-            merge_video_audio(temp_video, temp_audio, temp_merged, settings)
-
-            if progress_callback:
-                progress_callback(85)
-
-            title_settings = self._get_title_overlay_settings()
-            if title_settings.enabled and timestamps:
-                if status_callback:
-                    status_callback("Adding song title overlays...")
-                temp_titles = tempfile.mktemp(suffix=".mp4")
-                apply_song_titles_to_video(
-                    temp_merged, temp_titles, timestamps,
-                    title_settings, settings,
+                crossfade = self.crossfade_duration.value() if self.crossfade_check.isChecked() else 0.0
+                
+                temp_audio = tempfile.mktemp(suffix=".m4a")
+                timestamps = concat_audio_files(
+                    self.audio_files, temp_audio,
+                    crossfade_duration=crossfade,
+                    progress_callback=progress_callback,
                 )
-                os.unlink(temp_merged)
-                temp_merged = temp_titles
+                self.timestamps = timestamps
 
-            if progress_callback:
-                progress_callback(90)
+                total_duration = get_media_duration(temp_audio)
 
-            current_video = temp_merged
-
-            if self.intro_file or self.outro_file:
                 if status_callback:
-                    status_callback("Adding intro/outro...")
-                temp_io = tempfile.mktemp(suffix=".mp4")
-                add_intro_outro(
-                    current_video, temp_io, settings,
-                    intro_path=self.intro_file if self.intro_file else None,
-                    outro_path=self.outro_file if self.outro_file else None,
-                    audio_mode=self.audio_mode_combo.currentText().lower(),
-                )
-                os.unlink(current_video)
-                current_video = temp_io
+                    status_callback("Processing video...")
 
-            if progress_callback:
-                progress_callback(95)
+                temp_video = tempfile.mktemp(suffix=".mp4")
 
-            shutil.move(current_video, output_path)
+                if self.slideshow_check.isChecked() and self.slideshow_images:
+                    dur_per_img = total_duration / len(self.slideshow_images)
+                    create_slideshow(
+                        self.slideshow_images, dur_per_img, temp_video,
+                        settings, self.slide_transition.currentText(),
+                    )
+                else:
+                    loop_video_to_duration(
+                        self.video_file, total_duration, temp_video,
+                        settings, progress_callback,
+                    )
 
-            for f in [temp_audio, temp_video]:
-                if os.path.exists(f):
-                    os.unlink(f)
+                if progress_callback:
+                    progress_callback(60)
 
-            ts_file = output_path.rsplit(".", 1)[0] + "_timestamps.txt"
-            save_timestamps_to_file(timestamps, ts_file)
+                # Effects
+                active_effects = [e for e in ALL_EFFECTS if e.enabled]
+                if active_effects:
+                    if status_callback:
+                        status_callback("Applying visual effects...")
+                    effect_filter = build_effect_filter_chain(active_effects)
+                    if effect_filter:
+                        temp_fx = tempfile.mktemp(suffix=".mp4")
+                        ffmpeg = find_ffmpeg()
+                        cmd = [ffmpeg, "-y", "-i", temp_video, "-vf", effect_filter]
+                        cmd.extend(build_encoding_args(settings))
+                        cmd.extend(["-an", temp_fx])
+                        subprocess.run(cmd, capture_output=True, check=True)
+                        os.unlink(temp_video)
+                        temp_video = temp_fx
 
-            if progress_callback:
-                progress_callback(100)
-            if status_callback:
-                status_callback("Render complete!")
+                if progress_callback:
+                    progress_callback(75)
+
+                if status_callback:
+                    status_callback("Merging video and audio...")
+
+                temp_merged = tempfile.mktemp(suffix=".mp4")
+                merge_video_audio(temp_video, temp_audio, temp_merged, settings)
+
+                if progress_callback:
+                    progress_callback(85)
+
+                # TITLE OVERLAY DINONAKTIFKAN
+                current_video = temp_merged
+                print("⏭️ Song Title Overlay dinonaktifkan sementara")
+
+                if progress_callback:
+                    progress_callback(90)
+
+                # Intro & Outro
+                if self.intro_file or self.outro_file:
+                    if status_callback:
+                        status_callback("Adding intro/outro...")
+                    temp_io = tempfile.mktemp(suffix=".mp4")
+                    add_intro_outro(
+                        current_video,
+                        self.intro_file if self.intro_file else None,
+                        self.outro_file if self.outro_file else None,
+                        temp_io,
+                        settings
+                    )
+                    os.unlink(current_video)
+                    current_video = temp_io
+
+                if progress_callback:
+                    progress_callback(95)
+
+                shutil.move(current_video, output_path)
+
+                # Cleanup
+                for f in [temp_audio, temp_video]:
+                    if os.path.exists(f):
+                        try:
+                            os.unlink(f)
+                        except:
+                            pass
+
+                ts_file = output_path.rsplit(".", 1)[0] + "_timestamps.txt"
+                save_timestamps_to_file(timestamps, ts_file)
+
+                if progress_callback:
+                    progress_callback(100)
+                if status_callback:
+                    status_callback("Render complete!")
+
+            except Exception as e:
+                if status_callback:
+                    status_callback(f"Error: {str(e)}")
+                raise
 
         self.render_thread = RenderThread(render_task)
         self.render_thread.progress.connect(self.progress_bar.setValue)
         self.render_thread.status.connect(self.status_label.setText)
         self.render_thread.finished_signal.connect(self._on_render_finished)
         self.render_thread.start()
-
+        
     def _cancel_render(self):
         if self.render_thread and self.render_thread.isRunning():
             self.render_thread.terminate()
